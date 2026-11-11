@@ -1,35 +1,132 @@
 import XCTest
 
 final class FreeSudokuUITests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+    }
+
+    override func tearDown() {
+        XCUIDevice.shared.orientation = .portrait
+        super.tearDown()
+    }
+
     func testStartPlayPauseAndResume() throws {
         let app = XCUIApplication()
         app.launch()
+        startPuzzle(app)
+        capture("Portrait puzzle", app: app)
+        // Keep a stable identifier: the empty-cell query changes as digits are entered.
+        let emptyCell = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'cell-' AND value BEGINSWITH 'Empty'")
+        ).firstMatch
+        XCTAssertTrue(emptyCell.exists)
+        let editable = app.buttons[emptyCell.identifier]
+        reveal(editable, in: app)
+        editable.tap()
+        let notes = app.descendants(matching: .any)["notesMode"]
+        reveal(notes, in: app)
+        notes.tap()
+        reveal(app.buttons["Enter 1"], in: app)
+        app.buttons["Enter 1"].tap()
+        XCTAssertTrue((editable.value as? String)?.contains("notes 1") == true)
+        reveal(notes, in: app)
+        notes.tap()
+        reveal(app.buttons["Enter 1"], in: app)
+        app.buttons["Enter 1"].tap()
+        reveal(app.buttons["Undo"], in: app)
+        XCTAssertTrue(app.buttons["Undo"].isEnabled)
+        app.buttons["Undo"].tap()
+        XCTAssertTrue((editable.value as? String)?.contains("notes 1") == true)
+        reveal(app.buttons["Redo"], in: app)
+        XCTAssertTrue(app.buttons["Redo"].isEnabled)
+        scrollToTop(app)
+        app.buttons["Pause"].tap()
+        XCTAssertTrue(app.buttons["Resume puzzle"].waitForExistence(timeout: 5))
+        capture("Paused puzzle", app: app)
+        app.buttons["Resume puzzle"].tap()
+        XCTAssertTrue(app.buttons["cell-0"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["Resume puzzle"].waitForExistence(timeout: 10))
+        app.buttons["Resume puzzle"].tap()
+        XCTAssertTrue(app.buttons["cell-0"].waitForExistence(timeout: 5))
+        XCTAssertTrue((editable.value as? String)?.contains("notes 1") == true)
+        reveal(app.buttons["Redo"], in: app)
+        XCTAssertTrue(app.buttons["Redo"].isEnabled)
+        scrollToTop(app)
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let landscape = NSPredicate { _, _ in
+            let frame = app.windows.firstMatch.frame
+            return frame.width > frame.height
+        }
+        expectation(for: landscape, evaluatedWith: app)
+        waitForExpectations(timeout: 10)
+        capture("Landscape puzzle", app: app)
+        XCUIDevice.shared.orientation = .portrait
+        app.buttons["Settings and statistics"].tap()
+        let mistakes = app.switches["Highlight incorrect digits"]
+        XCTAssertTrue(mistakes.waitForExistence(timeout: 5))
+        mistakes.tap()
+        capture("Settings", app: app)
+        app.buttons["Done"].tap()
+    }
+
+    func testLargeTextAndDarkAppearance() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "-AppleInterfaceStyle",
+            "Dark",
+        ]
+        app.launch()
+        startPuzzle(app)
+        capture("Large text dark puzzle", app: app)
+        let cell = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'cell-' AND value BEGINSWITH 'Empty'")
+        ).firstMatch
+        reveal(cell, in: app)
+        cell.tap()
+        reveal(app.buttons["Enter 2"], in: app)
+        XCTAssertTrue(app.buttons["Enter 2"].isEnabled)
+        XCTAssertGreaterThanOrEqual(app.buttons["Enter 2"].frame.height, 44)
+        app.buttons["Enter 2"].tap()
+        capture("Large text dark controls", app: app)
+    }
+
+    private func startPuzzle(_ app: XCUIApplication) {
         if app.buttons["Let’s play"].waitForExistence(timeout: 5) { app.buttons["Let’s play"].tap() }
         let newPuzzle = app.buttons["newPuzzle"]
         XCTAssertTrue(newPuzzle.waitForExistence(timeout: 10))
+        reveal(newPuzzle, in: app)
         newPuzzle.tap()
         app.buttons["Easy"].tap()
         let replace = app.buttons["Replace with new puzzle"]
         if replace.waitForExistence(timeout: 2) { replace.tap() }
         let firstCell = app.buttons["cell-0"]
         XCTAssertTrue(firstCell.waitForExistence(timeout: 30))
-        // Find an editable cell without depending on the randomized puzzle.
-        let emptyCell = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cell-' AND value BEGINSWITH 'Empty'")).firstMatch
-        XCTAssertTrue(emptyCell.exists)
-        emptyCell.tap()
-        app.buttons["Enter 1"].tap()
-        XCTAssertTrue(app.buttons["Undo"].isEnabled)
-        app.buttons["Undo"].tap()
-        XCTAssertTrue(app.buttons["Redo"].isEnabled)
-        app.buttons["Pause"].tap()
-        XCTAssertTrue(app.buttons["Resume puzzle"].waitForExistence(timeout: 5))
-        app.buttons["Resume puzzle"].tap()
-        XCTAssertTrue(firstCell.waitForExistence(timeout: 5))
-        app.terminate()
-        app.launch()
-        XCTAssertTrue(app.buttons["Resume puzzle"].waitForExistence(timeout: 10))
-        app.buttons["Resume puzzle"].tap()
-        XCTAssertTrue(firstCell.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Redo"].isEnabled)
+        scrollToTop(app)
+    }
+
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        if element.isHittable { return }
+        scrollToTop(app)
+        for _ in 0..<8 {
+            if element.isHittable { return }
+            app.swipeUp()
+        }
+        XCTAssertTrue(element.isHittable, "Expected control to be reachable by scrolling")
+    }
+
+    private func scrollToTop(_ app: XCUIApplication) {
+        for _ in 0..<4 { app.swipeDown() }
+    }
+
+    private func capture(_ name: String, app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

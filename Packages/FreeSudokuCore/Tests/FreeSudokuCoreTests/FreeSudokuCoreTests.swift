@@ -39,6 +39,35 @@ final class FreeSudokuCoreTests: XCTestCase {
         XCTAssertTrue(Sudoku.peers(of: -1).isEmpty)
     }
 
+    func testValidPartialBoardCanStillBeUnsolvable() {
+        var board = Array(repeating: 0, count: 81)
+        for index in 0..<8 { board[index] = index + 1 }
+        board[17] = 9
+        XCTAssertTrue(Sudoku.isValid(board))
+        XCTAssertEqual(Sudoku.solutionCount(board), 0)
+        XCTAssertEqual(Sudoku.solutionCount(board, limit: 0), 0)
+    }
+
+    func testHistoryLimitAndNoteToggle() throws {
+        var game = Game(puzzle: try fixture())
+        game.enter(3, at: 0, asNote: true)
+        game.enter(3, at: 0, asNote: true)
+        XCTAssertTrue(game.board.notes[0].isEmpty)
+        for _ in 0..<205 {
+            game.enter(1, at: 0)
+            game.erase(at: 0)
+        }
+        XCTAssertEqual(game.undoHistory.count, 200)
+        for _ in 0..<200 { game.undo() }
+        XCTAssertFalse(game.canUndo)
+        XCTAssertEqual(game.redoHistory.count, 200)
+        try game.validate()
+        let save = SavedSession(game: game, statistics: Statistics())
+        XCTAssertEqual(try SavedSession.decode(save.encoded()), save)
+        game.enter(5, at: 0)
+        XCTAssertFalse(game.canRedo)
+    }
+
     func testNotesUndoRedoAndBranching() throws {
         var game = Game(puzzle: try fixture())
         game.enter(3, at: 0, asNote: true)

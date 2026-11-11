@@ -58,16 +58,34 @@ jobs:
             -derivedDataPath build/iPhone -resultBundlePath build/iPhoneTests.xcresult \
             CODE_SIGNING_ALLOWED=NO
       - name: Test on iPad
+        if: ${{ !cancelled() && steps.simulators.outcome == 'success' }}
         run: |
           xcodebuild test -project Apps/FreeSudoku/FreeSudoku.xcodeproj \
             -scheme FreeSudoku -destination 'platform=iOS Simulator,id=${{ steps.simulators.outputs.iPad }}' \
             -derivedDataPath build/iPad -resultBundlePath build/iPadTests.xcresult \
             CODE_SIGNING_ALLOWED=NO
+      - name: Export screenshots
+        if: always()
+        run: |
+          for result in build/iPhoneTests.xcresult build/iPadTests.xcresult; do
+            if [ -d "$result" ]; then
+              name=$(basename "$result" .xcresult)
+              xcrun xcresulttool export attachments --path "$result" --output-path "build/screenshots/$name"
+            fi
+          done
       - name: Upload simulator test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: FreeSudoku-test-results
           path: build/*.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeSudoku-screenshots
+          path: build/screenshots
           if-no-files-found: ignore
           retention-days: 14
