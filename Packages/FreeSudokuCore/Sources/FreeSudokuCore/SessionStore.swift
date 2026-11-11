@@ -12,7 +12,8 @@ public struct SessionStore: Sendable {
         let handle: FileHandle
         do {
             handle = try FileHandle(forReadingFrom: url)
-        } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoSuchFileError
+        } catch let error as NSError where error.domain == NSCocoaErrorDomain
+            && (error.code == NSFileReadNoSuchFileError || error.code == NSFileNoSuchFileError)
         {
             return nil
         }

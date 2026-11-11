@@ -24,6 +24,13 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
     }
 
+    func testMissingSaveInExistingDirectoryIsEmpty() throws {
+        let parent = store.url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        XCTAssertNil(try store.load())
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: parent.path).isEmpty)
+    }
+
     func testDiskRoundTripAndAtomicReplacement() throws {
         var session = try fixture()
         session.game.enter(2, at: 0, asNote: true)
