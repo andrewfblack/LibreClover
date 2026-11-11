@@ -1,0 +1,24 @@
+# Local-only product plans and agent handoff; never publish these.
+/FreeKit-Agent-Handoff/
+
+# macOS / Xcode
+.DS_Store
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Local configuration and signing secrets
+.env
+.env.*
+!.env.example
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
