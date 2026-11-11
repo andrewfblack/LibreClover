@@ -48,6 +48,6 @@ The icon source and output are covered by the repository's GPLv3 license. Pillow
 
 Simulator tests do not replace hardware testing. Before release, verify VoiceOver, maximum Dynamic Type, contrast, touch targets, rotation, split-view, interruptions, persistence and low-storage errors on real iPhone and iPad devices. A 9-column board necessarily has smaller cells on small screens; VoiceOver exposes cell coordinates, values and notes.
 
-The app includes an initial original icon, but no signed distribution setup. Confirm the provisional bundle ID `com.andrewfblack.libreclover.FreeSudoku`, approve final artwork, configure an Apple Developer team, review licenses/privacy, and obtain human release approval before TestFlight. Signing is disabled in `project.yml` for CI; enable it explicitly when configuring device/distribution builds. Never commit certificates or API keys.
+The app includes an initial original icon, but no signed distribution setup. Confirm the provisional bundle ID `com.libreclover.FreeSudoku`, approve final artwork, configure an Apple Developer team, review licenses/privacy, and obtain human release approval before TestFlight. Signing is disabled in `project.yml` for CI; enable it explicitly when configuring device/distribution builds. Never commit certificates or API keys.
 
 License: GPLv3. Apple distribution terms and GPL obligations need review before App Store distribution.
