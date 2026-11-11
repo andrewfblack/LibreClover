@@ -1,8 +1,8 @@
-# FreeKit
+# LibreClover
 
 Open-source native iPhone and iPad apps and games.
 
-FreeKit apps are designed to be free, privacy-first, accessible, and offline-capable wherever possible—without ads, tracking, in-app purchases, or required accounts.
+LibreClover apps are designed to be free, privacy-first, accessible, and offline-capable wherever possible—without ads, tracking, in-app purchases, or required accounts.
 
 Each app will be independently installable, with shared Swift packages where useful.
 

@@ -1,5 +1,5 @@
 # Local-only product plans and agent handoff; never publish these.
-/FreeKit-Agent-Handoff/
+/LibreClover-Agent-Handoff/
 
 # macOS / Xcode
 .DS_Store

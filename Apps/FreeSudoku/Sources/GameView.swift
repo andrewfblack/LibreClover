@@ -316,7 +316,7 @@ struct GameView: View {
                     )
                 }
                 Section("About") {
-                    Text("FreeSudoku · FreeKit\nOpen-source software under GPLv3.")
+                    Text("FreeSudoku · LibreClover\nOpen-source software under GPLv3.")
                     Text("Difficulty is based on clue density, not a technique-based rating.")
                 }
             }
