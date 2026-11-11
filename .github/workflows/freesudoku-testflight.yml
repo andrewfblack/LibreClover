@@ -1,0 +1,164 @@
+name: FreeSudoku TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload the signed IPA to TestFlight (leave off for a build-only run)
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freesudoku-testflight
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Archive and optionally upload FreeSudoku
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 45
+    environment: app-store
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      BUILD_NUMBER: ${{ github.run_number }}.${{ github.run_attempt }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Prepare App Store Connect credentials
+        env:
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ASC_KEY_PATH="$RUNNER_TEMP/freesudoku-api-key.p8"
+          echo "ASC_KEY_PATH=$ASC_KEY_PATH" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import os, pathlib, re, uuid
+          required = ('APPLE_TEAM_ID', 'APP_STORE_CONNECT_KEY_ID', 'APP_STORE_CONNECT_ISSUER_ID', 'APP_STORE_CONNECT_PRIVATE_KEY')
+          missing = [name for name in required if not os.environ.get(name, '').strip()]
+          if missing:
+              raise SystemExit('Missing app-store environment secrets: ' + ', '.join(missing))
+          for name in ('APPLE_TEAM_ID', 'APP_STORE_CONNECT_KEY_ID'):
+              if not re.fullmatch(r'[A-Z0-9]{10}', os.environ[name]):
+                  raise SystemExit(name + ' must contain exactly 10 uppercase letters/digits')
+          try:
+              uuid.UUID(os.environ['APP_STORE_CONNECT_ISSUER_ID'])
+          except ValueError:
+              raise SystemExit('APP_STORE_CONNECT_ISSUER_ID must be a UUID')
+          key = os.environ['APP_STORE_CONNECT_PRIVATE_KEY'].strip()
+          if not key.startswith('-----BEGIN PRIVATE KEY-----'):
+              raise SystemExit('APP_STORE_CONNECT_PRIVATE_KEY must contain the raw multiline .p8 PEM, not base64')
+          os.umask(0o077)
+          pathlib.Path(os.environ['ASC_KEY_PATH']).write_text(key + '\n')
+          PY
+          openssl pkey -in "$ASC_KEY_PATH" -noout
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.2'
+
+      - name: Report toolchain
+        run: xcodebuild -version
+
+      - name: Test Sudoku engine and local saves
+        working-directory: Packages/FreeSudokuCore
+        run: swift test
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: Apps/FreeSudoku
+        run: xcodegen generate
+
+      - name: Archive for iPhone and iPad
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project Apps/FreeSudoku/FreeSudoku.xcodeproj \
+            -scheme FreeSudoku -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/FreeSudoku.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            CODE_SIGN_STYLE=Automatic CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+      - name: Create automatic signing export options
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, plistlib
+          options = {
+              'method': 'app-store-connect',
+              'destination': 'export',
+              'signingStyle': 'automatic',
+              'signingCertificate': 'Apple Distribution',
+              'teamID': os.environ['APPLE_TEAM_ID'],
+              'manageAppVersionAndBuildNumber': False,
+              'uploadSymbols': True,
+          }
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'FreeSudoku-ExportOptions.plist'
+          path.write_bytes(plistlib.dumps(options))
+          PY
+
+      - name: Sign and export IPA
+        id: export
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/FreeSudoku.xcarchive" \
+            -exportPath "$RUNNER_TEMP/FreeSudoku-export" \
+            -exportOptionsPlist "$RUNNER_TEMP/FreeSudoku-ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+          test -f "$RUNNER_TEMP/FreeSudoku-export/FreeSudoku.ipa"
+
+      - name: Upload to TestFlight (explicit opt-in only)
+        if: ${{ inputs.upload }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_directory="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$key_directory"
+          install -m 600 "$ASC_KEY_PATH" "$key_directory/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          log="$RUNNER_TEMP/FreeSudoku-upload.log"
+          xcrun altool --upload-app --type ios \
+            --file "$RUNNER_TEMP/FreeSudoku-export/FreeSudoku.ipa" \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" 2>&1 | tee "$log"
+          if grep -Eq 'UPLOAD FAILED|Validation failed|Failed to upload package' "$log"; then
+            echo 'App Store Connect rejected the upload' >&2
+            exit 1
+          fi
+
+      - name: Upload signed build artifact
+        if: ${{ !cancelled() && steps.export.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeSudoku-IPA-${{ env.BUILD_NUMBER }}
+          path: ${{ runner.temp }}/FreeSudoku-export/FreeSudoku.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove API key files
+        if: always()
+        shell: bash
+        run: |
+          rm -f -- "${ASC_KEY_PATH:-$RUNNER_TEMP/freesudoku-api-key.p8}"
+          if [[ -n "$APP_STORE_CONNECT_KEY_ID" ]]; then
+            rm -f -- "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          fi
