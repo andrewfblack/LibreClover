@@ -9,6 +9,12 @@ public struct SessionStore: Sendable {
     }
 
     public func load() throws -> SavedSession? {
+        // Darwin's FileHandle can report ENOENT for a directory URL as well.
+        // Reject an existing directory explicitly instead of treating it as an empty save.
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+            throw GameError.invalidSave
+        }
         let handle: FileHandle
         do {
             handle = try FileHandle(forReadingFrom: url)
