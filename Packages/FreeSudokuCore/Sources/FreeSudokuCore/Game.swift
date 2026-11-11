@@ -116,6 +116,7 @@ public struct Statistics: Codable, Equatable, Sendable {
 }
 
 public struct SavedSession: Codable, Equatable, Sendable {
+    public static let maximumBytes = 5_000_000
     public let version: Int
     public var game: Game
     public var statistics: Statistics
@@ -131,7 +132,7 @@ public struct SavedSession: Codable, Equatable, Sendable {
     }
 
     public static func decode(_ data: Data) throws -> SavedSession {
-        guard data.count <= 5_000_000 else { throw GameError.invalidSave }
+        guard data.count <= maximumBytes else { throw GameError.invalidSave }
         let session = try JSONDecoder().decode(Self.self, from: data)
         guard session.version == 1, session.statistics.completed >= 0,
               session.statistics.bestSeconds.map({ $0 >= 0 }) ?? true else { throw GameError.invalidSave }

@@ -8,6 +8,7 @@ struct GameView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage("hasSeenWelcome") private var hasSeenWelcome = false
     @AppStorage("showMistakes") private var showMistakes = false
+    @AppStorage("appearance") private var appearance = AppAppearance.system
     @State private var showHelp = false
     @State private var showSettings = false
     @State private var pendingDifficulty: Difficulty?
@@ -35,7 +36,7 @@ struct GameView: View {
                                         .foregroundStyle(Color(uiColor: .systemBackground))
                                 }
                             } else {
-                                playArea(game, wide: geometry.size.width >= 800 && !dynamicTypeSize.isAccessibilitySize)
+                                playArea(game, wide: geometry.size.width >= 700 && !dynamicTypeSize.isAccessibilitySize)
                                 if game.isComplete {
                                     Label("Puzzle complete!", systemImage: "checkmark.seal.fill")
                                         .font(.title2.bold()).foregroundStyle(.green)
@@ -56,7 +57,7 @@ struct GameView: View {
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     .padding()
-                    .frame(maxWidth: geometry.size.width >= 800 && !dynamicTypeSize.isAccessibilitySize ? 1060 : 620)
+                    .frame(maxWidth: geometry.size.width >= 700 && !dynamicTypeSize.isAccessibilitySize ? 1060 : 620)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -211,7 +212,9 @@ struct GameView: View {
                 }.buttonStyle(.bordered)
             }
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 180 : 110), spacing: 8)],
+                columns: dynamicTypeSize.isAccessibilitySize
+                    ? [GridItem(.flexible())]
+                    : [GridItem(.adaptive(minimum: 110), spacing: 8)],
                 spacing: 8
             ) {
                 editingTools
@@ -303,7 +306,15 @@ struct GameView: View {
     private var settings: some View {
         NavigationStack {
             Form {
-                Section("Play your way") { Toggle("Highlight incorrect digits", isOn: $showMistakes) }
+                Section("Play your way") {
+                    Toggle("Highlight incorrect digits", isOn: $showMistakes)
+                    Picker("Appearance", selection: $appearance) {
+                        ForEach(AppAppearance.allCases, id: \.self) { choice in
+                            Text(choice.title).tag(choice)
+                        }
+                    }
+                    .accessibilityIdentifier("appearancePicker")
+                }
                 Section("On this device") {
                     LabeledContent("Puzzles completed", value: "\(model.statistics.completed)")
                     LabeledContent(

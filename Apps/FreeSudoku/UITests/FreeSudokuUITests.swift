@@ -22,6 +22,9 @@ final class FreeSudokuUITests: XCTestCase {
 
     func testStartPlayPauseAndResume() throws {
         let app = XCUIApplication()
+        app.launchArguments += [
+            "-appearance", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL",
+        ]
         app.launch()
         startPuzzle(app)
         capture("Portrait puzzle", app: app)
@@ -72,8 +75,10 @@ final class FreeSudokuUITests: XCTestCase {
         }
         expectation(for: landscape, evaluatedWith: app)
         waitForExpectations(timeout: 10)
+        waitForStableBoard(app)
         capture("Landscape puzzle", app: app)
         XCUIDevice.shared.orientation = .portrait
+        waitForStableBoard(app)
         app.buttons["Settings and statistics"].tap()
         let mistakes = app.switches["Highlight incorrect digits"]
         XCTAssertTrue(mistakes.waitForExistence(timeout: 5))
@@ -85,8 +90,7 @@ final class FreeSudokuUITests: XCTestCase {
     func testLargeTextAndDarkAppearance() {
         let app = XCUIApplication()
         app.launchArguments += [
-            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "-AppleInterfaceStyle",
-            "Dark",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "-appearance", "dark",
         ]
         app.launch()
         startPuzzle(app)
@@ -130,6 +134,17 @@ final class FreeSudokuUITests: XCTestCase {
 
     private func scrollToTop(_ app: XCUIApplication) {
         for _ in 0..<4 { app.swipeDown() }
+    }
+
+    private func waitForStableBoard(_ app: XCUIApplication) {
+        var previous: CGRect?
+        let stable = NSPredicate { _, _ in
+            let frame = app.buttons["cell-0"].frame
+            defer { previous = frame }
+            return frame.width > 0 && frame == previous
+        }
+        let expectation = XCTNSPredicateExpectation(predicate: stable, object: app)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 10), .completed)
     }
 
     private func capture(_ name: String, app: XCUIApplication) {

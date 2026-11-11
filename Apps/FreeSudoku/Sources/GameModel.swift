@@ -11,21 +11,21 @@ final class GameModel: ObservableObject {
     @Published var paused = false
     @Published var errorMessage: String?
     @Published private(set) var recoveryNeeded = false
-    private let saveURL: URL
+    private let store: SessionStore
 
     init() {
-        saveURL = URL.applicationSupportDirectory
+        let saveURL = URL.applicationSupportDirectory
             .appendingPathComponent("FreeSudoku", isDirectory: true)
             .appendingPathComponent("session.json")
+        store = SessionStore(url: saveURL)
         Task { await restore() }
     }
 
     private func restore() async {
-        let url = saveURL
+        let store = self.store
         do {
             let saved = try await Task.detached(priority: .userInitiated) { () -> SavedSession? in
-                guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-                return try SavedSession.decode(Data(contentsOf: url))
+                try store.load()
             }.value
             game = saved?.game
             statistics = saved?.statistics ?? Statistics()
@@ -33,7 +33,8 @@ final class GameModel: ObservableObject {
             paused = game != nil && game?.isComplete == false
         } catch {
             recoveryNeeded = true
-            errorMessage = "Your saved game could not be opened. It has not been overwritten. You can retry loading it or explicitly replace it with a new game."
+            errorMessage =
+                "Your saved game could not be opened. It has not been overwritten. You can retry loading it or explicitly replace it with a new game."
         }
         isLoading = false
     }
@@ -112,9 +113,7 @@ final class GameModel: ObservableObject {
     func persist() {
         guard !recoveryNeeded, let game else { return }
         do {
-            let data = try SavedSession(game: game, statistics: statistics).encoded()
-            try FileManager.default.createDirectory(at: saveURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: saveURL, options: .atomic)
+            try store.save(SavedSession(game: game, statistics: statistics))
         } catch {
             errorMessage = "Your latest progress could not be saved. Keep the app open and try saving again."
         }

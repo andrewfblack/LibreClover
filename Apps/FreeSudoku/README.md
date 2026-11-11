@@ -41,7 +41,9 @@ The icon source and output are covered by the repository's GPLv3 license. Pillow
 - Moves save immediately. The timer checkpoints every ten seconds and when pausing/backgrounding. A force termination may lose up to ten seconds of timer progress.
 - Undo history is capped at 200 moves. Completed games are locked; hint counts are not undone. Statistics include hinted games.
 - Invalid saves are not automatically deleted or overwritten. Retry loading or explicitly confirm replacement with a new puzzle.
+- Session-file reads are bounded to 5 MB. File-based tests cover corrupt/oversized saves, missing files, atomic replacement, and read/write failures without touching real player data.
 - No networking, permissions, third-party SDKs, accounts, telemetry or paid features.
+- Appearance follows the system by default; Settings also offers explicit Light and Dark modes.
 - The privacy manifest declares app-scoped UserDefaults usage for preferences. Review declarations against current Apple requirements before distribution.
 
 ## Validation and distribution
