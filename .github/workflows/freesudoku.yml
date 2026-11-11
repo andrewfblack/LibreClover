@@ -1,0 +1,73 @@
+name: FreeSudoku
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Apps/FreeSudoku/**'
+      - 'Packages/FreeSudokuCore/**'
+      - '.github/workflows/freesudoku.yml'
+  pull_request:
+    paths:
+      - 'Apps/FreeSudoku/**'
+      - 'Packages/FreeSudokuCore/**'
+      - '.github/workflows/freesudoku.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freesudoku-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Test Sudoku engine
+        working-directory: Packages/FreeSudokuCore
+        run: swift test --enable-code-coverage
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: Apps/FreeSudoku
+        run: xcodegen generate
+      - name: Choose iPhone and iPad simulators
+        id: simulators
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          devices = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '--json']))['devices']
+          ios = [d for runtime, group in devices.items() if '.iOS-' in runtime for d in group if d.get('isAvailable')]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for kind in ('iPhone', 'iPad'):
+                  device = next(d for d in ios if kind in d['name'])
+                  output.write(f"{kind}={device['udid']}\n")
+          PY
+      - name: Test on iPhone
+        run: |
+          xcodebuild test -project Apps/FreeSudoku/FreeSudoku.xcodeproj \
+            -scheme FreeSudoku -destination 'platform=iOS Simulator,id=${{ steps.simulators.outputs.iPhone }}' \
+            -derivedDataPath build/iPhone -resultBundlePath build/iPhoneTests.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Test on iPad
+        run: |
+          xcodebuild test -project Apps/FreeSudoku/FreeSudoku.xcodeproj \
+            -scheme FreeSudoku -destination 'platform=iOS Simulator,id=${{ steps.simulators.outputs.iPad }}' \
+            -derivedDataPath build/iPad -resultBundlePath build/iPadTests.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Upload simulator test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeSudoku-test-results
+          path: build/*.xcresult
+          if-no-files-found: ignore
+          retention-days: 14

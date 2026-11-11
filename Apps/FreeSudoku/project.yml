@@ -1,0 +1,52 @@
+name: FreeSudoku
+options:
+  bundleIdPrefix: com.andrewfblack.freekit
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  FreeSudokuCore:
+    path: ../../Packages/FreeSudokuCore
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CODE_SIGNING_ALLOWED: NO
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  FreeSudoku:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - path: Resources
+        buildPhase: resources
+    dependencies:
+      - package: FreeSudokuCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.andrewfblack.freekit.FreeSudoku
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: FreeSudoku
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+  FreeSudokuUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests
+    dependencies:
+      - target: FreeSudoku
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  FreeSudoku:
+    build:
+      targets:
+        FreeSudoku: all
+    test:
+      targets:
+        - FreeSudokuUITests
