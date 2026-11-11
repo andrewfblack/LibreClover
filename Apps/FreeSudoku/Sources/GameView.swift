@@ -18,47 +18,58 @@ struct GameView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
-                ScrollView {
-                    VStack(spacing: 20) {
-                        if model.isLoading {
-                            ProgressView("Preparing your puzzle…")
-                                .padding(60)
-                        } else if let game = model.game {
-                            status(game)
-                            if model.paused && !game.isComplete {
-                                ContentUnavailableView {
-                                    Label("Take your time", systemImage: "pause.circle")
-                                } description: {
-                                    Text("Your puzzle is saved on this device.")
-                                } actions: {
-                                    Button("Resume puzzle") { model.paused = false }
-                                        .buttonStyle(.borderedProminent)
-                                        .foregroundStyle(Color(uiColor: .systemBackground))
+                if geometry.size.width > geometry.size.height, geometry.size.height < 500,
+                    !dynamicTypeSize.isAccessibilitySize, !model.isLoading,
+                    let game = model.game, !model.paused
+                {
+                    compactLandscapeGame(game, size: geometry.size)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            if model.isLoading {
+                                ProgressView("Preparing your puzzle…")
+                                    .padding(60)
+                            } else if let game = model.game {
+                                status(game)
+                                if model.paused && !game.isComplete {
+                                    ContentUnavailableView {
+                                        Label("Take your time", systemImage: "pause.circle")
+                                    } description: {
+                                        Text("Your puzzle is saved on this device.")
+                                    } actions: {
+                                        Button("Resume puzzle") { model.paused = false }
+                                            .buttonStyle(.borderedProminent)
+                                            .foregroundStyle(Color(uiColor: .systemBackground))
+                                    }
+                                } else {
+                                    playArea(
+                                        game, wide: geometry.size.width >= 700 && !dynamicTypeSize.isAccessibilitySize)
+                                    if game.isComplete {
+                                        Label("Puzzle complete!", systemImage: "checkmark.seal.fill")
+                                            .font(.title2.bold()).foregroundStyle(.green)
+                                        Text("\(game.hintsUsed) hints used. Choose New puzzle to play again.")
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                             } else {
-                                playArea(game, wide: geometry.size.width >= 700 && !dynamicTypeSize.isAccessibilitySize)
-                                if game.isComplete {
-                                    Label("Puzzle complete!", systemImage: "checkmark.seal.fill")
-                                        .font(.title2.bold()).foregroundStyle(.green)
-                                    Text("\(game.hintsUsed) hints used. Choose New puzzle to play again.")
-                                        .foregroundStyle(.secondary)
+                                ContentUnavailableView(
+                                    "A little focus. A fresh puzzle.", systemImage: "square.grid.3x3",
+                                    description: Text(
+                                        "Choose New puzzle below to begin. Everything stays on this device."))
+                                if model.recoveryNeeded {
+                                    Button("Retry loading saved game") { Task { await model.retryRestore() } }
                                 }
                             }
-                        } else {
-                            ContentUnavailableView(
-                                "A little focus. A fresh puzzle.", systemImage: "square.grid.3x3",
-                                description: Text("Choose New puzzle below to begin. Everything stays on this device."))
-                            if model.recoveryNeeded {
-                                Button("Retry loading saved game") { Task { await model.retryRestore() } }
-                            }
+                            newGameMenu
+                            Text("No ads. No accounts. Just Sudoku.")
+                                .font(.footnote).foregroundStyle(.secondary)
                         }
-                        newGameMenu
-                        Text("No ads. No accounts. Just Sudoku.")
-                            .font(.footnote).foregroundStyle(.secondary)
+                        .padding()
+                        .frame(
+                            maxWidth: geometry.size.width >= 700 && !dynamicTypeSize.isAccessibilitySize ? 1060 : 620
+                        )
+                        .frame(maxWidth: .infinity)
                     }
-                    .padding()
-                    .frame(maxWidth: geometry.size.width >= 700 && !dynamicTypeSize.isAccessibilitySize ? 1060 : 620)
-                    .frame(maxWidth: .infinity)
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
@@ -106,6 +117,30 @@ struct GameView: View {
                 if phase != .active { model.pause() }
             }
         }
+    }
+
+    private func compactLandscapeGame(_ game: Game, size: CGSize) -> some View {
+        let boardSide = max(0, min(size.height - 32, size.width * 0.48))
+        return HStack(alignment: .top, spacing: 20) {
+            SudokuBoard(game: game, selected: $model.selected, showMistakes: showMistakes)
+                .frame(width: boardSide, height: boardSide)
+            // Keep all 81 cells visible while the tools can scroll independently.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    status(game)
+                    if game.isComplete {
+                        Label("Puzzle complete!", systemImage: "checkmark.seal.fill")
+                            .font(.headline).foregroundStyle(.green)
+                    } else {
+                        playControls(game)
+                    }
+                    newGameMenu
+                }
+                .padding(.bottom, 8)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(16)
     }
 
     private func status(_ game: Game) -> some View {

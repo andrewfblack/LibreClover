@@ -97,6 +97,11 @@ final class FreeSudokuUITests: XCTestCase {
             let rotated = XCTNSPredicateExpectation(predicate: landscape, object: app)
             XCTAssertEqual(XCTWaiter.wait(for: [rotated], timeout: 10), .completed)
             waitForStableBoard(app)
+            let window = app.windows.firstMatch.frame
+            XCTAssertTrue(window.contains(app.buttons["cell-0"].frame), "The first cell must fit on screen")
+            XCTAssertTrue(window.contains(app.buttons["cell-80"].frame), "The last cell must fit on screen")
+            XCTAssertTrue(app.buttons["cell-80"].isHittable)
+            XCTAssertTrue(app.buttons["Enter 1"].isHittable, "Number controls must remain reachable in landscape")
             capture(name, app: app)
         }
 
@@ -180,7 +185,16 @@ final class FreeSudokuUITests: XCTestCase {
             screenshot.image.size.width / screenshot.image.size.height,
             window.width / window.height, accuracy: 0.02,
             "Screenshot aspect ratio must match the current window orientation")
-        let attachment = XCTAttachment(screenshot: screenshot)
+        // Bake UIImage's orientation into its pixels so exported PNGs also look
+        // correct in viewers that ignore the screenshot's EXIF orientation tag.
+        let image = screenshot.image
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        format.opaque = true
+        let upright = UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
+        let attachment = XCTAttachment(image: upright)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
