@@ -12,9 +12,7 @@ public struct SessionStore: Sendable {
         let handle: FileHandle
         do {
             handle = try FileHandle(forReadingFrom: url)
-        } catch let error as NSError where error.domain == NSCocoaErrorDomain
-            && (error.code == NSFileReadNoSuchFileError || error.code == NSFileNoSuchFileError)
-        {
+        } catch let error as NSError where Self.isMissingFile(error) {
             return nil
         }
         defer { try? handle.close() }
@@ -33,5 +31,18 @@ public struct SessionStore: Sendable {
         guard data.count <= SavedSession.maximumBytes else { throw GameError.invalidSave }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
+    }
+
+    private static func isMissingFile(_ error: NSError) -> Bool {
+        // Darwin can wrap both ENOENT and EISDIR in Cocoa's generic code 4.
+        // Prefer the underlying POSIX cause; a directory is not an absent save.
+        if error.domain == NSPOSIXErrorDomain {
+            return error.code == Int(POSIXErrorCode.ENOENT.rawValue)
+        }
+        guard error.domain == NSCocoaErrorDomain else { return false }
+        if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+            return isMissingFile(underlying)
+        }
+        return error.code == NSFileReadNoSuchFileError
     }
 }
