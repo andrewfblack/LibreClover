@@ -350,7 +350,6 @@ private struct SudokuBoard: View {
         }
         .aspectRatio(1, contentMode: .fit)
         .overlay(Rectangle().stroke(.primary, lineWidth: 2))
-        .accessibilityIdentifier("sudokuBoard")
     }
 
     private func cell(_ index: Int) -> some View {

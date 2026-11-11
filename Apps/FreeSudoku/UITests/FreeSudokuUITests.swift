@@ -8,6 +8,14 @@ final class FreeSudokuUITests: XCTestCase {
     }
 
     override func tearDown() {
+        if let testRun, testRun.failureCount > 0 {
+            let app = XCUIApplication()
+            capture("Failure screenshot", app: app)
+            let hierarchy = XCTAttachment(string: app.debugDescription)
+            hierarchy.name = "Failure accessibility hierarchy"
+            hierarchy.lifetime = .keepAlways
+            add(hierarchy)
+        }
         XCUIDevice.shared.orientation = .portrait
         super.tearDown()
     }
@@ -106,6 +114,7 @@ final class FreeSudokuUITests: XCTestCase {
         if replace.waitForExistence(timeout: 2) { replace.tap() }
         let firstCell = app.buttons["cell-0"]
         XCTAssertTrue(firstCell.waitForExistence(timeout: 30))
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cell-'")).count, 81)
         scrollToTop(app)
     }
 
