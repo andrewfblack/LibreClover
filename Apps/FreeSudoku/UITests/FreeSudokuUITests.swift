@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 final class FreeSudokuUITests: XCTestCase {
@@ -68,23 +69,46 @@ final class FreeSudokuUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Redo"].isEnabled)
         scrollToTop(app)
 
-        XCUIDevice.shared.orientation = .landscapeLeft
-        let landscape = NSPredicate { _, _ in
-            let frame = app.windows.firstMatch.frame
-            return frame.width > frame.height
-        }
-        expectation(for: landscape, evaluatedWith: app)
-        waitForExpectations(timeout: 10)
-        waitForStableBoard(app)
-        capture("Landscape puzzle", app: app)
-        XCUIDevice.shared.orientation = .portrait
-        waitForStableBoard(app)
         app.buttons["Settings and statistics"].tap()
         let mistakes = app.switches["Highlight incorrect digits"]
         XCTAssertTrue(mistakes.waitForExistence(timeout: 5))
         mistakes.tap()
         capture("Settings", app: app)
         app.buttons["Done"].tap()
+    }
+
+    func testLandscapeScreenshots() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-appearance", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL",
+        ]
+        app.launch()
+        startPuzzle(app)
+
+        for (orientation, name) in [
+            (UIDeviceOrientation.landscapeLeft, "Landscape left puzzle"),
+            (UIDeviceOrientation.landscapeRight, "Landscape right puzzle"),
+        ] {
+            XCUIDevice.shared.orientation = orientation
+            let landscape = NSPredicate { _, _ in
+                let frame = app.windows.firstMatch.frame
+                return frame.width > frame.height
+            }
+            let rotated = XCTNSPredicateExpectation(predicate: landscape, object: app)
+            XCTAssertEqual(XCTWaiter.wait(for: [rotated], timeout: 10), .completed)
+            waitForStableBoard(app)
+            capture(name, app: app)
+        }
+
+        XCUIDevice.shared.orientation = .portrait
+        let portrait = NSPredicate { _, _ in
+            let frame = app.windows.firstMatch.frame
+            return frame.height > frame.width
+        }
+        let rotated = XCTNSPredicateExpectation(predicate: portrait, object: app)
+        XCTAssertEqual(XCTWaiter.wait(for: [rotated], timeout: 10), .completed)
+        waitForStableBoard(app)
+        capture("Portrait after rotation", app: app)
     }
 
     func testLargeTextAndDarkAppearance() {
@@ -148,7 +172,15 @@ final class FreeSudokuUITests: XCTestCase {
     }
 
     private func capture(_ name: String, app: XCUIApplication) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        // XCUIApplication.screenshot() can crop using stale portrait bounds after
+        // rotation. Capture the native screen, not the app-window rectangle.
+        let screenshot = XCUIScreen.main.screenshot()
+        let window = app.windows.firstMatch.frame
+        XCTAssertEqual(
+            screenshot.image.size.width / screenshot.image.size.height,
+            window.width / window.height, accuracy: 0.02,
+            "Screenshot aspect ratio must match the current window orientation")
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
