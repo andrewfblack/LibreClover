@@ -383,22 +383,38 @@ private struct SudokuBoard: View {
     @ScaledMetric(relativeTo: .body) private var digitSize = 24
 
     var body: some View {
-        VStack(spacing: 0) {
-            ForEach(0..<9) { row in
-                HStack(spacing: 0) {
-                    ForEach(0..<9) { column in
-                        cell(row * 9 + column)
-                        if column == 2 || column == 5 { Rectangle().fill(.primary).frame(width: 2) }
+        GeometryReader { geometry in
+            let side = min(geometry.size.width, geometry.size.height)
+            let cellSide = side / 9
+            ZStack(alignment: .topLeading) {
+                VStack(spacing: 0) {
+                    ForEach(0..<9) { row in
+                        HStack(spacing: 0) {
+                            ForEach(0..<9) { column in
+                                cell(row * 9 + column, side: cellSide)
+                            }
+                        }
                     }
                 }
-                if row == 2 || row == 5 { Rectangle().fill(.primary).frame(height: 2) }
+                Path { path in
+                    for division in [3, 6] {
+                        let offset = CGFloat(division) * cellSide
+                        path.move(to: CGPoint(x: offset, y: 0))
+                        path.addLine(to: CGPoint(x: offset, y: side))
+                        path.move(to: CGPoint(x: 0, y: offset))
+                        path.addLine(to: CGPoint(x: side, y: offset))
+                    }
+                }
+                .stroke(.primary, lineWidth: 2)
+                .allowsHitTesting(false)
             }
+            .frame(width: side, height: side)
         }
         .aspectRatio(1, contentMode: .fit)
         .overlay(Rectangle().stroke(.primary, lineWidth: 2))
     }
 
-    private func cell(_ index: Int) -> some View {
+    private func cell(_ index: Int, side: CGFloat) -> some View {
         let value = game.board.values[index]
         let fixed = game.puzzle.clues[index] != 0
         let wrong = showMistakes && value != 0 && value != game.puzzle.solution[index]
@@ -410,7 +426,10 @@ private struct SudokuBoard: View {
                 Rectangle().fill(background(index))
                 if value != 0 {
                     Text("\(value)")
-                        .font(.system(size: min(digitSize, 36), weight: fixed ? .bold : .regular, design: .rounded))
+                        .font(
+                            .system(
+                                size: min(digitSize, side * 0.7), weight: fixed ? .bold : .regular, design: .rounded)
+                        )
                         .foregroundStyle(wrong ? Color.red : fixed ? Color.primary : Color.accentColor)
                         .minimumScaleFactor(0.5)
                     if wrong {
@@ -425,17 +444,17 @@ private struct SudokuBoard: View {
                                 ForEach(1...3, id: \.self) { column in
                                     let digit = row * 3 + column
                                     Text(game.board.notes[index].contains(digit) ? "\(digit)" : " ")
-                                        .font(.system(size: 9)).frame(maxWidth: .infinity)
+                                        .font(.system(size: min(9, side * 0.22))).frame(maxWidth: .infinity)
                                 }
                             }
                         }
                     }.padding(2).foregroundStyle(.secondary)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .aspectRatio(1, contentMode: .fit)
-            .overlay(Rectangle().stroke(Color.primary.opacity(0.2), lineWidth: 0.5))
-            .overlay(Rectangle().stroke(selected == index ? Color.accentColor : .clear, lineWidth: 3))
+            .frame(width: side, height: side)
+            .contentShape(Rectangle())
+            .overlay(Rectangle().strokeBorder(Color.primary.opacity(0.2), lineWidth: 0.5))
+            .overlay(Rectangle().strokeBorder(selected == index ? Color.accentColor : .clear, lineWidth: 3))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Row \(index / 9 + 1), column \(index % 9 + 1)")

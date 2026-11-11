@@ -97,6 +97,7 @@ final class FreeSudokuUITests: XCTestCase {
             let rotated = XCTNSPredicateExpectation(predicate: landscape, object: app)
             XCTAssertEqual(XCTWaiter.wait(for: [rotated], timeout: 10), .completed)
             waitForStableBoard(app)
+            assertUniformBoard(app)
             let window = app.windows.firstMatch.frame
             XCTAssertTrue(window.contains(app.buttons["cell-0"].frame), "The first cell must fit on screen")
             XCTAssertTrue(window.contains(app.buttons["cell-80"].frame), "The last cell must fit on screen")
@@ -174,6 +175,22 @@ final class FreeSudokuUITests: XCTestCase {
         }
         let expectation = XCTNSPredicateExpectation(predicate: stable, object: app)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 10), .completed)
+    }
+
+    private func assertUniformBoard(_ app: XCUIApplication) {
+        let first = app.buttons["cell-0"].frame
+        let last = app.buttons["cell-80"].frame
+        let pitchX = (last.minX - first.minX) / 8
+        let pitchY = (last.minY - first.minY) / 8
+        XCTAssertGreaterThan(first.width, 20)
+        XCTAssertEqual(pitchX, pitchY, accuracy: 1)
+        for index in 0..<81 {
+            let frame = app.buttons["cell-\(index)"].frame
+            XCTAssertEqual(frame.width, pitchX, accuracy: 1, "Cell \(index) width")
+            XCTAssertEqual(frame.height, pitchY, accuracy: 1, "Cell \(index) must be square")
+            XCTAssertEqual(frame.minX, first.minX + CGFloat(index % 9) * pitchX, accuracy: 1)
+            XCTAssertEqual(frame.minY, first.minY + CGFloat(index / 9) * pitchY, accuracy: 1)
+        }
     }
 
     private func capture(_ name: String, app: XCUIApplication) {
